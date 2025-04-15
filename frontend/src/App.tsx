@@ -947,198 +947,272 @@ const App: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Detailed Cash Flow Breakdown
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Buy Scenario
+              {results.cash_flows.years.map((year, yearIndex) => {
+                const buyData = results.cash_flows.buy_breakdown[yearIndex];
+                const rentData = results.cash_flows.rent_breakdown[yearIndex];
+                const buyCumulativeTotal = results.cash_flows.buy_breakdown
+                  .slice(0, yearIndex + 1)
+                  .reduce((sum, year) => sum + year.total, 0);
+                const rentCumulativeTotal = results.cash_flows.rent_breakdown
+                  .slice(0, yearIndex + 1)
+                  .reduce((sum, year) => sum + year.total, 0);
+
+                return (
+                  <Paper key={year} sx={{ p: 1.5, mb: 1.5 }}>
+                    <Typography variant="subtitle1" gutterBottom align="center" sx={{ mb: 1 }}>
+                      {year === 0 ? 'Initial Costs' : `Year ${year}`}
                     </Typography>
-                    {results.cash_flows.buy_breakdown.map((yearData, index) => {
-                      const cumulativeTotal = results.cash_flows.buy_breakdown
-                        .slice(0, index + 1)
-                        .reduce((sum, year) => sum + year.total, 0);
-                      return (
-                        <Paper key={yearData.year} sx={{ p: 2, mb: 2 }}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            Year {yearData.year}
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 1.5, bgcolor: 'background.default' }}>
+                          <Typography variant="subtitle2" gutterBottom align="center" sx={{ mb: 1 }}>
+                            Buy Scenario
                           </Typography>
-                          <Grid container spacing={2}>
-                            {Object.entries(yearData.components).map(([key, value]) => (
-                              <Grid item xs={12} key={key}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Typography variant="body2">
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: 'column',
+                            height: '100%'
+                          }}>
+                            <Box>
+                              {Object.entries(buyData.components).map(([key, value]) => (
+                                <Box key={key} sx={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center',
+                                  minHeight: '24px'
+                                }}>
+                                  <Typography variant="body2" sx={{ mr: 1 }}>
                                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                                   </Typography>
-                                  <Typography variant="body2">
+                                  <Typography variant="body2" sx={{ color: value >= 0 ? 'success.main' : 'error.main' }}>
                                     £{value.toFixed(2)}
                                   </Typography>
                                 </Box>
-                              </Grid>
-                            ))}
-                            <Grid item xs={12}>
-                              <Divider sx={{ my: 1 }} />
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              ))}
+                            </Box>
+                            <Box sx={{ mt: 'auto' }}>
+                              <Divider sx={{ my: 0.5 }} />
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                minHeight: '24px'
+                              }}>
                                 <Typography variant="subtitle2">
-                                  Year Total:
+                                  {year === 0 ? 'Total Initial Costs' : 'Year Total'}:
                                 </Typography>
-                                <Typography variant="subtitle2">
-                                  £{yearData.total.toFixed(2)}
+                                <Typography variant="subtitle2" sx={{ color: buyData.total >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{buyData.total.toFixed(2)}
                                 </Typography>
                               </Box>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                minHeight: '24px'
+                              }}>
                                 <Typography variant="subtitle2">
                                   Cumulative Total:
                                 </Typography>
-                                <Typography variant="subtitle2">
-                                  £{cumulativeTotal.toFixed(2)}
+                                <Typography variant="subtitle2" sx={{ color: buyCumulativeTotal >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{buyCumulativeTotal.toFixed(2)}
                                 </Typography>
                               </Box>
-                            </Grid>
-                          </Grid>
+                            </Box>
+                          </Box>
                         </Paper>
-                      );
-                    })}
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Rent Scenario
-                    </Typography>
-                    {results.cash_flows.rent_breakdown.map((yearData, index) => {
-                      const cumulativeTotal = results.cash_flows.rent_breakdown
-                        .slice(0, index + 1)
-                        .reduce((sum, year) => sum + year.total, 0);
-                      return (
-                        <Paper key={yearData.year} sx={{ p: 2, mb: 2 }}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            Year {yearData.year}
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 1.5, bgcolor: 'background.default' }}>
+                          <Typography variant="subtitle2" gutterBottom align="center" sx={{ mb: 1 }}>
+                            Rent Scenario
                           </Typography>
-                          <Grid container spacing={2}>
-                            {Object.entries(yearData.components).map(([key, value]) => (
-                              <Grid item xs={12} key={key}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Typography variant="body2">
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: 'column',
+                            height: '100%'
+                          }}>
+                            <Box>
+                              {Object.entries(rentData.components).map(([key, value]) => (
+                                <Box key={key} sx={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center',
+                                  minHeight: '24px'
+                                }}>
+                                  <Typography variant="body2" sx={{ mr: 1 }}>
                                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                                   </Typography>
-                                  <Typography variant="body2">
+                                  <Typography variant="body2" sx={{ color: value >= 0 ? 'success.main' : 'error.main' }}>
                                     £{value.toFixed(2)}
                                   </Typography>
                                 </Box>
-                              </Grid>
-                            ))}
-                            <Grid item xs={12}>
-                              <Divider sx={{ my: 1 }} />
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              ))}
+                            </Box>
+                            <Box sx={{ mt: 'auto' }}>
+                              <Divider sx={{ my: 0.5 }} />
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                minHeight: '24px'
+                              }}>
                                 <Typography variant="subtitle2">
                                   Year Total:
                                 </Typography>
-                                <Typography variant="subtitle2">
-                                  £{yearData.total.toFixed(2)}
+                                <Typography variant="subtitle2" sx={{ color: rentData.total >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{rentData.total.toFixed(2)}
                                 </Typography>
                               </Box>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                minHeight: '24px'
+                              }}>
                                 <Typography variant="subtitle2">
                                   Cumulative Total:
                                 </Typography>
-                                <Typography variant="subtitle2">
-                                  £{cumulativeTotal.toFixed(2)}
+                                <Typography variant="subtitle2" sx={{ color: rentCumulativeTotal >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{rentCumulativeTotal.toFixed(2)}
                                 </Typography>
                               </Box>
-                            </Grid>
-                          </Grid>
+                            </Box>
+                          </Box>
                         </Paper>
-                      );
-                    })}
+                      </Grid>
+                    </Grid>
                   </Paper>
-                </Grid>
-              </Grid>
+                );
+              })}
             </Box>
 
             <Box sx={{ mt: 4 }}>
               <Typography variant="h6" gutterBottom>
                 Balance Sheet Analysis
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Buy Scenario Balance Sheet
+              {results?.cash_flows?.years.map((year, yearIndex) => {
+                const buyData = results.cash_flows.buy_balance_sheet[yearIndex];
+                const rentData = results.cash_flows.rent_balance_sheet[yearIndex];
+
+                return (
+                  <Paper key={year} sx={{ p: 2, mb: 2 }}>
+                    <Typography variant="h6" gutterBottom align="center">
+                      Year {year}
                     </Typography>
-                    {results?.cash_flows?.buy_balance_sheet.map((yearData) => (
-                      <Paper key={yearData.year} sx={{ p: 2, mb: 2 }}>
-                        <Typography variant="subtitle1" gutterBottom>
-                          Year {yearData.year} Balance Sheet
-                        </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Assets
-                            </Typography>
-                            <Typography>Property Value: £{yearData.assets.property_value.toFixed(2)}</Typography>
-                            {yearData.assets.cash !== undefined && (
-                              <Typography>Cash from Sale: £{yearData.assets.cash.toFixed(2)}</Typography>
-                            )}
-                            <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                              Total Assets: £{yearData.assets.total_assets.toFixed(2)}
-                            </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                          <Typography variant="subtitle1" gutterBottom align="center">
+                            Buy Scenario Balance Sheet
+                          </Typography>
+                          <Grid container spacing={2}>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Assets
+                              </Typography>
+                              <Box sx={{ pl: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Property Value:</Typography>
+                                  <Typography variant="body2">£{buyData.assets.property_value.toFixed(2)}</Typography>
+                                </Box>
+                                {buyData.assets.cash !== undefined && (
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                    <Typography variant="body2">Cash from Sale:</Typography>
+                                    <Typography variant="body2">£{buyData.assets.cash.toFixed(2)}</Typography>
+                                  </Box>
+                                )}
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Total Assets:</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                    £{buyData.assets.total_assets.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Liabilities
+                              </Typography>
+                              <Box sx={{ pl: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Mortgage Balance:</Typography>
+                                  <Typography variant="body2" sx={{ color: 'error.main' }}>
+                                    £{buyData.liabilities.mortgage_balance.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Total Liabilities:</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                                    £{buyData.liabilities.total_liabilities.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Divider sx={{ my: 1 }} />
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="subtitle2">Net Worth:</Typography>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: buyData.net_worth >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{buyData.net_worth.toFixed(2)}
+                                </Typography>
+                              </Box>
+                            </Grid>
                           </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Liabilities
-                            </Typography>
-                            <Typography>Mortgage Balance: £{yearData.liabilities.mortgage_balance.toFixed(2)}</Typography>
-                            <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                              Total Liabilities: £{yearData.liabilities.total_liabilities.toFixed(2)}
-                            </Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                          <Typography variant="subtitle1" gutterBottom align="center">
+                            Rent Scenario Balance Sheet
+                          </Typography>
+                          <Grid container spacing={2}>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Assets
+                              </Typography>
+                              <Box sx={{ pl: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Investment Balance:</Typography>
+                                  <Typography variant="body2">£{rentData.assets.investment_balance.toFixed(2)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Total Assets:</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                    £{rentData.assets.total_assets.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Liabilities
+                              </Typography>
+                              <Box sx={{ pl: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2">Total Liabilities:</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                                    £{rentData.liabilities.total_liabilities.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                              <Divider sx={{ my: 1 }} />
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="subtitle2">Net Worth:</Typography>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: rentData.net_worth >= 0 ? 'success.main' : 'error.main' }}>
+                                  £{rentData.net_worth.toFixed(2)}
+                                </Typography>
+                              </Box>
+                            </Grid>
                           </Grid>
-                          <Grid item xs={12}>
-                            <Typography variant="subtitle2" sx={{ mt: 1, color: yearData.net_worth >= 0 ? 'success.main' : 'error.main' }}>
-                              Net Worth: £{yearData.net_worth.toFixed(2)}
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </Paper>
-                    ))}
+                        </Paper>
+                      </Grid>
+                    </Grid>
                   </Paper>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Rent Scenario Balance Sheet
-                    </Typography>
-                    {results?.cash_flows?.rent_balance_sheet.map((yearData) => (
-                      <Paper key={yearData.year} sx={{ p: 2, mb: 2 }}>
-                        <Typography variant="subtitle1" gutterBottom>
-                          Year {yearData.year} Balance Sheet
-                        </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Assets
-                            </Typography>
-                            <Typography>Investment Balance: £{yearData.assets.investment_balance.toFixed(2)}</Typography>
-                            <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                              Total Assets: £{yearData.assets.total_assets.toFixed(2)}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Liabilities
-                            </Typography>
-                            <Typography>Total Liabilities: £{yearData.liabilities.total_liabilities.toFixed(2)}</Typography>
-                          </Grid>
-                          <Grid item xs={12}>
-                            <Typography variant="subtitle2" sx={{ mt: 1, color: yearData.net_worth >= 0 ? 'success.main' : 'error.main' }}>
-                              Net Worth: £{yearData.net_worth.toFixed(2)}
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </Paper>
-                    ))}
-                  </Paper>
-                </Grid>
-              </Grid>
+                );
+              })}
             </Box>
           </Paper>
         )}

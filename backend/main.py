@@ -83,7 +83,7 @@ def calculate_stamp_duty(property_value: float, is_second_home: bool = False) ->
 
 def calculate_cash_flows(request: AnalysisRequest):
     # Initialize arrays for cash flows
-    years = np.arange(1, request.common.sell_after_years + 1)
+    years = np.arange(0, request.common.sell_after_years + 1)  # Include year 0 for initial costs
     
     # Calculate stamp duty
     stamp_duty = calculate_stamp_duty(request.buy.property_value, request.buy.is_second_home)
@@ -112,7 +112,7 @@ def calculate_cash_flows(request: AnalysisRequest):
     # Track investment opportunity cost for deposit
     deposit_investment_balance = request.buy.deposit
     
-    # Initial costs
+    # Initial costs (Year 0)
     initial_costs = {
         "deposit": -request.buy.deposit,
         "conveyancing_fees": -request.buy.conveyancing_fees,
@@ -128,7 +128,7 @@ def calculate_cash_flows(request: AnalysisRequest):
         "components": initial_costs
     })
     
-    # Initial balance sheet
+    # Initial balance sheet (Year 0)
     buy_balance_sheet.append({
         "year": 0,
         "assets": {
@@ -147,7 +147,7 @@ def calculate_cash_flows(request: AnalysisRequest):
     mortgage_balance[0] = request.buy.loan_amount
     accumulated_equity[0] = request.buy.deposit
     
-    # Calculate yearly cash flows
+    # Calculate yearly cash flows starting from Year 1
     for i in range(1, len(years)):
         # Property appreciation
         property_value[i] = property_value[i-1] * (1 + request.buy.home_appreciation_rate)
@@ -194,11 +194,14 @@ def calculate_cash_flows(request: AnalysisRequest):
                 buy_components["full_house_rent_income"] = full_rent_income
                 buy_cash_flow[i] += full_rent_income
         
+        # Update bank balance
+        buy_bank_balance[i] = buy_bank_balance[i-1] + buy_cash_flow[i]
+        
         buy_breakdown.append({
             "year": i,
             "total": buy_cash_flow[i],
             "components": buy_components,
-            "bank_balance": buy_bank_balance[i]  # Add bank balance to breakdown
+            "bank_balance": buy_bank_balance[i]
         })
         
         # Calculate balance sheet for this year
@@ -218,21 +221,47 @@ def calculate_cash_flows(request: AnalysisRequest):
     
     # Selling the property
     if request.common.sell_after_years <= request.common.sell_after_years:
-        selling_year = request.common.sell_after_years - 1
+        selling_year = request.common.sell_after_years
         selling_price = property_value[selling_year]
         agent_fees = selling_price * request.buy.selling_agent_fees_percent
         remaining_mortgage = mortgage_balance[selling_year]
         
         # Calculate capital gains tax
         original_cost = request.buy.property_value + request.buy.conveyancing_fees + request.buy.stamp_duty
+        
+        # Calculate total mortgage interest paid over the years
+        total_mortgage_interest = 0
+        for i in range(request.common.sell_after_years + 1):  # Include the selling year
+            yearly_mortgage = monthly_mortgage * 12
+            interest_payment = mortgage_balance[i] * request.buy.mortgage_rate
+            total_mortgage_interest += interest_payment
+        
+        # Calculate total rental income
+        total_rental_income = 0
+        for i in range(request.common.sell_after_years + 1):  # Include the selling year
+            if i < request.common.daughter_living_years:
+                if request.buy.room_rent is not None and request.buy.room_rent_increase is not None and request.buy.months_rented_per_year is not None:
+                    room_rent = request.buy.room_rent * (1 + request.buy.room_rent_increase) ** i
+                    total_rental_income += room_rent * request.buy.months_rented_per_year
+            else:
+                if request.buy.room_rent is not None and request.buy.room_rent_increase is not None:
+                    room_rent = request.buy.room_rent * (1 + request.buy.room_rent_increase) ** i
+                    total_rental_income += room_rent * 12 * 2  # Full house rental
+        
+        # Calculate mortgage interest deduction (20% of total mortgage interest)
+        mortgage_interest_deduction = total_mortgage_interest * 0.20
+        
+        # Calculate taxable gain after mortgage interest deduction
         capital_gain = selling_price - original_cost
-        cgt = max(0, capital_gain * request.buy.cgt_rate)  # CGT only applies to gains
+        taxable_gain = max(0, capital_gain - mortgage_interest_deduction)
+        cgt = taxable_gain * request.buy.cgt_rate  # CGT only applies to gains
         
         selling_components = {
             "property_sale": selling_price,
             "agent_fees": -agent_fees,
             "mortgage_repayment": -remaining_mortgage,
-            "capital_gains_tax": -cgt
+            "capital_gains_tax": -cgt,
+            "mortgage_interest_deduction": mortgage_interest_deduction
         }
         
         sale_proceeds = selling_price - agent_fees - remaining_mortgage - cgt
@@ -259,9 +288,34 @@ def calculate_cash_flows(request: AnalysisRequest):
     rent_bank_balance = np.zeros_like(years, dtype=float)  # Track bank account balance
     
     # Initial bank balance for rent scenario starts with the deposit
-    rent_bank_balance[0] = request.buy.deposit - request.rent.rent_per_month * 12  # Initial deposit minus first year's rent
+    rent_bank_balance[0] = request.buy.deposit  # Just the deposit in Year 0
     
-    for i in range(len(years)):
+    # Add initial breakdown for Year 0
+    rent_breakdown.append({
+        "year": 0,
+        "total": 0,
+        "components": {
+            "initial_deposit": request.buy.deposit
+        },
+        "investment_balance": request.buy.deposit,
+        "bank_balance": request.buy.deposit
+    })
+    
+    # Initial balance sheet for Year 0
+    rent_balance_sheet.append({
+        "year": 0,
+        "assets": {
+            "investment_balance": request.buy.deposit,
+            "total_assets": request.buy.deposit
+        },
+        "liabilities": {
+            "total_liabilities": 0
+        },
+        "net_worth": request.buy.deposit
+    })
+    
+    # Calculate rent scenario starting from Year 1
+    for i in range(1, len(years)):
         rent_components = {}
         
         # Investment returns on entire portfolio
@@ -271,25 +325,25 @@ def calculate_cash_flows(request: AnalysisRequest):
         investment_balance += investment_return
         
         # Only include rent for years when daughter is living there
-        if i < request.common.daughter_living_years:
-            yearly_rent = request.rent.rent_per_month * 12 * (1 + request.rent.rent_annual_increase) ** i
+        if i <= request.common.daughter_living_years:  # Changed < to <= to include the final year
+            yearly_rent = request.rent.rent_per_month * 12 * (1 + request.rent.rent_annual_increase) ** (i-1)
             rent_components["rent_payments"] = -yearly_rent
             rent_cash_flow[i] -= yearly_rent
             total_rent_paid += yearly_rent
             # Update bank balance: previous balance + investment returns - rent
-            rent_bank_balance[i] = (rent_bank_balance[i-1] if i > 0 else request.buy.deposit) + investment_return - yearly_rent
+            rent_bank_balance[i] = rent_bank_balance[i-1] + investment_return - yearly_rent
         else:
             rent_components["rent_payments"] = 0
             rent_cash_flow[i] += 0
             # Update bank balance: previous balance + investment returns
-            rent_bank_balance[i] = (rent_bank_balance[i-1] if i > 0 else request.buy.deposit) + investment_return
+            rent_bank_balance[i] = rent_bank_balance[i-1] + investment_return
         
         rent_breakdown.append({
             "year": i,
             "total": rent_cash_flow[i],
             "components": rent_components,
             "investment_balance": investment_balance,
-            "bank_balance": rent_bank_balance[i]  # Add bank balance to breakdown
+            "bank_balance": rent_bank_balance[i]
         })
         
         # Calculate balance sheet for this year
@@ -302,7 +356,7 @@ def calculate_cash_flows(request: AnalysisRequest):
             "liabilities": {
                 "total_liabilities": 0
             },
-            "net_worth": investment_balance - total_rent_paid  # Subtract total rent paid from net worth
+            "net_worth": investment_balance - total_rent_paid
         })
     
     return {
