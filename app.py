@@ -159,7 +159,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     }
     
     buy_cash_flow[0] = sum(initial_costs.values())
-    buy_bank_balance[0] = -sum(initial_costs.values())
+    buy_bank_balance[0] = buy_cash_flow[0]  # Just use the cash flow as it already includes all initial costs
     property_value[0] = buy.property_value
     mortgage_balance[0] = buy.loan_amount
     accumulated_equity[0] = buy.deposit
@@ -171,7 +171,8 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
         "property_value": property_value[0],
         "mortgage_balance": mortgage_balance[0],
         "equity": accumulated_equity[0],
-        "components": initial_costs
+        "components": initial_costs,
+        "bank_balance": buy_bank_balance[0]
     })
     
     # Calculate yearly cash flows
@@ -221,7 +222,8 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
             "property_value": property_value[i],
             "mortgage_balance": mortgage_balance[i],
             "equity": property_value[i] - mortgage_balance[i],
-            "components": yearly_components
+            "components": yearly_components,
+            "bank_balance": buy_bank_balance[i]
         })
     
     # Add the final property sale to the last year's cash flow
@@ -238,7 +240,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     # Add sale proceeds to final year cash flow
     sale_proceeds = selling_price - agent_fees - remaining_mortgage - cgt
     buy_cash_flow[final_year] += sale_proceeds
-    buy_bank_balance[final_year] += sale_proceeds
+    buy_bank_balance[final_year] = buy_bank_balance[final_year-1] + sale_proceeds
     
     buy_yearly_details[final_year]["components"].update({
         "property_sale": selling_price,
@@ -247,6 +249,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
         "capital_gains_tax": -cgt
     })
     buy_yearly_details[final_year]["cash_flow"] = buy_cash_flow[final_year]
+    buy_yearly_details[final_year]["bank_balance"] = buy_bank_balance[final_year]
     
     # Rent scenario calculations with investment returns
     rent_cash_flow = np.zeros_like(years, dtype=float)
@@ -272,21 +275,31 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
         rent_cash_flow[i] += investment_return
         investment_balance += investment_return
         
-        # Rent and utilities
-        yearly_rent = rent.rent_per_month * 12 * (1 + rent.rent_annual_increase) ** (i-1)
-        utilities_cost = common.utilities_per_month * 12
-        rent_cash_flow[i] -= yearly_rent + utilities_cost
+        # Rent and utilities - only for years when child is living there
+        if i <= common.child_living_years:
+            yearly_rent = rent.rent_per_month * 12 * (1 + rent.rent_annual_increase) ** (i-1)
+            utilities_cost = common.utilities_per_month * 12
+            rent_cash_flow[i] -= yearly_rent + utilities_cost
+            rent_yearly_details.append({
+                "year": i,
+                "cash_flow": rent_cash_flow[i],
+                "investment_returns": investment_return,
+                "rent_paid": -yearly_rent,
+                "utilities": -utilities_cost,
+                "bank_balance": rent_bank_balance[i]
+            })
+        else:
+            rent_yearly_details.append({
+                "year": i,
+                "cash_flow": rent_cash_flow[i],
+                "investment_returns": investment_return,
+                "rent_paid": 0,
+                "utilities": 0,
+                "bank_balance": rent_bank_balance[i]
+            })
         
         # Update bank balance
         rent_bank_balance[i] = rent_bank_balance[i-1] + rent_cash_flow[i]
-        
-        rent_yearly_details.append({
-            "year": i,
-            "cash_flow": rent_cash_flow[i],
-            "rent_paid": -yearly_rent,
-            "utilities": -utilities_cost,
-            "bank_balance": rent_bank_balance[i]
-        })
     
     # Calculate NPV for both scenarios
     discount_rate = buy.investment_return_rate  # Use investment return rate as discount rate
@@ -670,80 +683,75 @@ def main():
         st.metric('Rent Scenario NPV', f'£{results["rent_npv"]:,.2f}')
     st.write(f'NPV Difference: £{(results["buy_npv"] - results["rent_npv"]):,.2f}')
     
-    # Balance Sheet Analysis
-    st.subheader('Balance Sheet Analysis')
-    balance_tab1, balance_tab2 = st.tabs(['Buy Scenario', 'Rent Scenario'])
+    # Combined Cash Flow and Balance Sheet Analysis
+    st.subheader('Detailed Financial Analysis')
+    analysis_tab1, analysis_tab2 = st.tabs(['Buy Scenario', 'Rent Scenario'])
     
-    with balance_tab1:
+    with analysis_tab1:
         buy_df = pd.DataFrame([{
             'Year': d['year'],
+            'Cash Flow': d['cash_flow'],
+            'Mortgage Payment': d['components'].get('mortgage_payment', 0),
+            'Interest Paid': d['components'].get('interest_paid', 0),
+            'Principal Paid': d['components'].get('principal_paid', 0),
+            'Rental Income': d['components'].get('rental_income', 0),
+            'Insurance': d['components'].get('insurance', 0),
+            'Utilities': d['components'].get('utilities', 0),
+            'Property Sale': d['components'].get('property_sale', 0),
+            'Agent Fees': d['components'].get('agent_fees', 0),
+            'Mortgage Repayment': d['components'].get('mortgage_repayment', 0),
+            'Capital Gains Tax': d['components'].get('capital_gains_tax', 0),
             'Property Value': d['property_value'],
             'Mortgage Balance': d['mortgage_balance'],
             'Equity': d['equity'],
-            'Net Worth': d['property_value'] - d['mortgage_balance']
+            'Bank Balance': d['bank_balance'],
+            'Net Worth': d['bank_balance'] if d['year'] == common.sell_after_years else d['property_value'] - d['mortgage_balance']
         } for d in results['buy_yearly_details']])
         
         # Format all columns except 'Year' with currency
         buy_df_styled = buy_df.style.format({
+            'Cash Flow': '£{:,.2f}',
+            'Mortgage Payment': '£{:,.2f}',
+            'Interest Paid': '£{:,.2f}',
+            'Principal Paid': '£{:,.2f}',
+            'Rental Income': '£{:,.2f}',
+            'Insurance': '£{:,.2f}',
+            'Utilities': '£{:,.2f}',
+            'Property Sale': '£{:,.2f}',
+            'Agent Fees': '£{:,.2f}',
+            'Mortgage Repayment': '£{:,.2f}',
+            'Capital Gains Tax': '£{:,.2f}',
             'Property Value': '£{:,.2f}',
             'Mortgage Balance': '£{:,.2f}',
             'Equity': '£{:,.2f}',
+            'Bank Balance': '£{:,.2f}',
             'Net Worth': '£{:,.2f}',
             'Year': '{:.0f}'  # Format Year as integer
         })
         st.dataframe(buy_df_styled, hide_index=True)
     
-    with balance_tab2:
+    with analysis_tab2:
         rent_df = pd.DataFrame([{
             'Year': d['year'],
+            'Cash Flow': d['cash_flow'],
+            'Investment Returns': d.get('investment_returns', 0),
+            'Rent Paid': d.get('rent_paid', 0),
+            'Utilities': d.get('utilities', 0),
             'Bank Balance': d['bank_balance'],
-            'Cash Flow': d['cash_flow']
+            'Net Worth': d['bank_balance']  # For rent scenario, net worth is just the bank balance
         } for d in results['rent_yearly_details']])
         
         # Format all columns except 'Year' with currency
         rent_df_styled = rent_df.style.format({
-            'Bank Balance': '£{:,.2f}',
             'Cash Flow': '£{:,.2f}',
-            'Year': '{:.0f}'  # Format Year as integer
-        })
-        st.dataframe(rent_df_styled, hide_index=True)
-    
-    # Cash Flow Analysis
-    st.subheader('Cash Flow Analysis')
-    cashflow_tab1, cashflow_tab2 = st.tabs(['Buy Scenario', 'Rent Scenario'])
-    
-    with cashflow_tab1:
-        buy_cashflow_df = pd.DataFrame([{
-            'Year': d['year'],
-            'Total Cash Flow': d['cash_flow'],
-            **d['components']
-        } for d in results['buy_yearly_details']])
-        
-        # Create format dictionary for all columns
-        format_dict = {col: '£{:,.2f}' for col in buy_cashflow_df.columns}
-        format_dict['Year'] = '{:.0f}'  # Format Year as integer
-        
-        buy_cashflow_styled = buy_cashflow_df.style.format(format_dict)
-        st.dataframe(buy_cashflow_styled, hide_index=True)
-    
-    with cashflow_tab2:
-        rent_cashflow_df = pd.DataFrame([{
-            'Year': d['year'],
-            'Total Cash Flow': d['cash_flow'],
-            'Investment Returns': d.get('investment_returns', 0),
-            'Rent Paid': d.get('rent_paid', 0),
-            'Utilities': d.get('utilities', 0)
-        } for d in results['rent_yearly_details']])
-        
-        # Format all columns except 'Year' with currency
-        rent_cashflow_styled = rent_cashflow_df.style.format({
-            'Total Cash Flow': '£{:,.2f}',
             'Investment Returns': '£{:,.2f}',
             'Rent Paid': '£{:,.2f}',
             'Utilities': '£{:,.2f}',
+            'Bank Balance': '£{:,.2f}',
+            'Net Worth': '£{:,.2f}',
             'Year': '{:.0f}'  # Format Year as integer
         })
-        st.dataframe(rent_cashflow_styled, hide_index=True)
+        st.dataframe(rent_df_styled, hide_index=True)
     
     # Visualization
     st.subheader('Cash Flow Comparison')
