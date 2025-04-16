@@ -41,7 +41,14 @@ def load_settings():
     try:
         if os.path.exists(SETTINGS_FILE):
             with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
+                settings = json.load(f)
+                
+                # Migrate from daughter_years to child_years if needed
+                if 'daughter_years' in settings and 'child_years' not in settings:
+                    settings['child_years'] = settings.pop('daughter_years')
+                    # Save the migrated settings
+                    save_settings(settings)
+                return settings
     except Exception as e:
         st.warning(f"Could not load saved settings: {str(e)}")
     return DEFAULT_SETTINGS
