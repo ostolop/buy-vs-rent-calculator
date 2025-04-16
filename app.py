@@ -376,6 +376,35 @@ def plot_cash_flows(results):
 
 def main():
     st.title('Student Accommodation Rent vs Buy Calculator')
+    
+    # About section
+    with st.expander("About this Calculator"):
+        st.markdown("""
+        This calculator helps parents and students make informed decisions about whether to buy or rent student accommodation. It provides a comprehensive financial comparison between purchasing a property for student housing versus renting over a specified period.
+
+        **Key Features:**
+        - Detailed mortgage calculations including interest rates and loan terms
+        - Property value appreciation projections
+        - Rental income potential from letting rooms
+        - Complete cost analysis including stamp duty, conveyancing fees, and maintenance
+        - Investment return comparisons
+        - Flexible scenarios for different time periods
+        - Net Present Value (NPV) analysis
+        
+        **How to Use:**
+        1. Adjust the parameters in the sidebar to match your specific situation
+        2. Review the detailed analysis and visualizations
+        3. Compare the long-term financial implications of buying versus renting
+        4. Use the URL sharing feature to save and share your calculations
+        
+        **Note:** This calculator is designed as a decision-support tool and should be used alongside professional financial advice for making property investment decisions.
+
+        **About the Author:**
+        Created by Misha Kapushesky (c) 2025
+
+        [![GitHub](https://img.shields.io/badge/GitHub-Profile-blue?style=flat&logo=github)](https://github.com/ostolop)
+        """)
+    
     st.write('Compare the financial implications of renting versus buying a student accommodation property.')
     
     # Initialize session state from URL parameters
