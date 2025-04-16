@@ -377,7 +377,8 @@ def generate_recommendation(results, buy: BuyScenario, rent: RentScenario, commo
     # Investment returns analysis for rent scenario
     initial_deposit = buy.deposit
     final_investment = results['rent_bank_balance'][-1]
-    total_investment_returns = final_investment - initial_deposit
+    # Calculate total investment returns by summing up all the yearly returns
+    total_investment_returns = sum(detail.get('investment_returns', 0) for detail in results['rent_yearly_details'])
     recommendation.append(f"\nInvestment returns: The deposit of £{initial_deposit:,.2f} would generate £{total_investment_returns:,.2f} in investment returns at {buy.investment_return_rate*100:.1f}% annual return.")
     
     # Rental income analysis
