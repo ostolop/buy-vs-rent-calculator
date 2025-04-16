@@ -159,7 +159,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     }
     
     buy_cash_flow[0] = sum(initial_costs.values())
-    buy_bank_balance[0] = buy_cash_flow[0]  # Just use the cash flow as it already includes all initial costs
+    buy_bank_balance[0] = 0  # Start at 0 after paying all initial costs
     property_value[0] = buy.property_value
     mortgage_balance[0] = buy.loan_amount
     accumulated_equity[0] = buy.deposit
@@ -234,11 +234,37 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     
     # Calculate capital gains tax
     original_cost = buy.property_value + buy.conveyancing_fees + buy.stamp_duty
+    
+    # Calculate total mortgage interest paid over the years
+    total_mortgage_interest = 0
+    for i in range(common.sell_after_years + 1):  # Include the selling year
+        yearly_mortgage = monthly_mortgage * 12
+        interest_payment = mortgage_balance[i] * buy.mortgage_rate
+        total_mortgage_interest += interest_payment
+    
+    # Calculate mortgage interest deduction (20% of total mortgage interest)
+    mortgage_interest_deduction = total_mortgage_interest * 0.20
+    
+    # Calculate taxable gain after mortgage interest deduction
     capital_gain = selling_price - original_cost
-    cgt = capital_gain * buy.cgt_rate if capital_gain > 0 else 0
+    taxable_gain = max(0, capital_gain - mortgage_interest_deduction)
+    cgt = taxable_gain * buy.cgt_rate if taxable_gain > 0 else 0
+    
+    # Calculate sale proceeds (this is what you actually get in your bank account)
+    sale_proceeds = selling_price - agent_fees - remaining_mortgage - cgt
+    
+    # Debug logging
+    print(f"Original cost: £{original_cost:,.2f}")
+    print(f"Total mortgage interest: £{total_mortgage_interest:,.2f}")
+    print(f"Mortgage interest deduction: £{mortgage_interest_deduction:,.2f}")
+    print(f"Capital gain: £{capital_gain:,.2f}")
+    print(f"Taxable gain: £{taxable_gain:,.2f}")
+    print(f"CGT: £{cgt:,.2f}")
+    print(f"Agent fees: £{agent_fees:,.2f}")
+    print(f"Remaining mortgage: £{remaining_mortgage:,.2f}")
+    print(f"Final sale proceeds: £{sale_proceeds:,.2f}")
     
     # Add sale proceeds to final year cash flow
-    sale_proceeds = selling_price - agent_fees - remaining_mortgage - cgt
     buy_cash_flow[final_year] += sale_proceeds
     buy_bank_balance[final_year] = buy_bank_balance[final_year-1] + sale_proceeds
     
@@ -246,7 +272,8 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
         "property_sale": selling_price,
         "agent_fees": -agent_fees,
         "mortgage_repayment": -remaining_mortgage,
-        "capital_gains_tax": -cgt
+        "capital_gains_tax": -cgt,
+        "mortgage_interest_deduction": mortgage_interest_deduction
     })
     buy_yearly_details[final_year]["cash_flow"] = buy_cash_flow[final_year]
     buy_yearly_details[final_year]["bank_balance"] = buy_bank_balance[final_year]
@@ -273,7 +300,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
         # Investment returns
         investment_return = investment_balance * buy.investment_return_rate
         rent_cash_flow[i] += investment_return
-        investment_balance += investment_return
+        investment_balance += investment_return  # Add returns to balance for compound interest
         
         # Rent and utilities - only for years when child is living there
         if i <= common.child_living_years:
@@ -286,7 +313,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
                 "investment_returns": investment_return,
                 "rent_paid": -yearly_rent,
                 "utilities": -utilities_cost,
-                "bank_balance": rent_bank_balance[i]
+                "bank_balance": rent_bank_balance[i-1] + rent_cash_flow[i]  # Update bank balance with this year's cash flow
             })
         else:
             rent_yearly_details.append({
@@ -295,7 +322,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
                 "investment_returns": investment_return,
                 "rent_paid": 0,
                 "utilities": 0,
-                "bank_balance": rent_bank_balance[i]
+                "bank_balance": rent_bank_balance[i-1] + rent_cash_flow[i]  # Update bank balance with this year's cash flow
             })
         
         # Update bank balance
@@ -322,7 +349,8 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     }
 
 def generate_recommendation(results, buy: BuyScenario, rent: RentScenario, common: CommonParams) -> str:
-    final_buy_position = results['buy_bank_balance'][-1] + (results['property_value'][-1] - results['mortgage_balance'][-1])
+    # Calculate final positions consistently - use only bank balance which includes everything
+    final_buy_position = results['buy_bank_balance'][-1]  # This already includes sale proceeds
     final_rent_position = results['rent_bank_balance'][-1]  # This already includes investment returns
     npv_difference = results['buy_npv'] - results['rent_npv']
     
@@ -346,7 +374,7 @@ def generate_recommendation(results, buy: BuyScenario, rent: RentScenario, commo
     total_appreciation = results['property_value'][-1] - buy.property_value
     recommendation.append(f"\nProperty appreciation: The property value is expected to increase by £{total_appreciation:,.2f} over {common.sell_after_years} years at {buy.home_appreciation_rate*100:.1f}% annual appreciation.")
     
-    # Investment returns analysis
+    # Investment returns analysis for rent scenario
     initial_deposit = buy.deposit
     final_investment = results['rent_bank_balance'][-1]
     total_investment_returns = final_investment - initial_deposit
@@ -705,7 +733,7 @@ def main():
             'Mortgage Balance': d['mortgage_balance'],
             'Equity': d['equity'],
             'Bank Balance': d['bank_balance'],
-            'Net Worth': d['bank_balance'] if d['year'] == common.sell_after_years else d['property_value'] - d['mortgage_balance']
+            'Net Worth': d['bank_balance']  # Always use bank balance which includes all assets and liabilities
         } for d in results['buy_yearly_details']])
         
         # Format all columns except 'Year' with currency
@@ -766,10 +794,10 @@ def main():
     st.subheader('Final Position')
     final_col1, final_col2 = st.columns(2)
     with final_col1:
-        st.metric('Buy Scenario Net Worth', f'£{final_buy_position:,.2f}')
+        st.metric('Buy Scenario Net Worth', f'£{results["buy_bank_balance"][-1]:,.2f}')
     with final_col2:
-        st.metric('Rent Scenario Net Worth', f'£{final_rent_position:,.2f}')
-    st.write(f'Difference: £{abs(final_buy_position - final_rent_position):,.2f} in favor of {"buying" if final_buy_position > final_rent_position else "renting"}')
+        st.metric('Rent Scenario Net Worth', f'£{results["rent_bank_balance"][-1]:,.2f}')
+    st.write(f'Difference: £{abs(results["buy_bank_balance"][-1] - results["rent_bank_balance"][-1]):,.2f} in favor of {"buying" if results["buy_bank_balance"][-1] > results["rent_bank_balance"][-1] else "renting"}')
 
 if __name__ == '__main__':
     main() 
