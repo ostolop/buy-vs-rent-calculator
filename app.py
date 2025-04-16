@@ -6,9 +6,7 @@ import plotly.graph_objects as go
 from dataclasses import dataclass
 from typing import Optional
 import json
-import os
-
-SETTINGS_FILE = 'calculator_settings.json'
+from urllib.parse import quote, unquote
 
 # Default settings
 DEFAULT_SETTINGS = {
@@ -37,28 +35,41 @@ DEFAULT_SETTINGS = {
     'child_years': 3
 }
 
-def load_settings():
-    try:
-        if os.path.exists(SETTINGS_FILE):
-            with open(SETTINGS_FILE, 'r') as f:
-                settings = json.load(f)
-                
-                # Migrate from daughter_years to child_years if needed
-                if 'daughter_years' in settings and 'child_years' not in settings:
-                    settings['child_years'] = settings.pop('daughter_years')
-                    # Save the migrated settings
-                    save_settings(settings)
-                return settings
-    except Exception as e:
-        st.warning(f"Could not load saved settings: {str(e)}")
-    return DEFAULT_SETTINGS
+def load_url_params():
+    """Load settings from URL parameters"""
+    # Get settings from URL parameters
+    if 'settings' in st.query_params:
+        try:
+            # Decode the JSON string from the URL
+            settings_json = unquote(st.query_params['settings'])
+            return json.loads(settings_json)
+        except:
+            return DEFAULT_SETTINGS.copy()
+    return DEFAULT_SETTINGS.copy()
 
-def save_settings(settings):
-    try:
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=2)
-    except Exception as e:
-        st.warning(f"Could not save settings: {str(e)}")
+def save_url_params(settings):
+    """Save settings to URL parameters"""
+    # Encode settings as JSON string in URL
+    settings_json = quote(json.dumps(settings))
+    st.query_params['settings'] = settings_json
+
+def initialize_session_state():
+    """Initialize session state with settings from URL parameters"""
+    settings = load_url_params()
+    for key, value in settings.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+def reset_to_defaults():
+    """Reset all settings to default values"""
+    for key, value in DEFAULT_SETTINGS.items():
+        st.session_state[key] = value
+    save_url_params(DEFAULT_SETTINGS)
+
+def update_url_from_session():
+    """Update URL parameters from current session state"""
+    settings = {key: st.session_state[key] for key in DEFAULT_SETTINGS.keys()}
+    save_url_params(settings)
 
 # Data classes for input parameters
 @dataclass
@@ -367,147 +378,183 @@ def main():
     st.title('Student Accommodation Rent vs Buy Calculator')
     st.write('Compare the financial implications of renting versus buying a student accommodation property.')
     
-    # Load saved settings
-    settings = load_settings()
+    # Initialize session state from URL parameters
+    initialize_session_state()
     
     with st.sidebar:
         st.header('Input Parameters')
         
         st.subheader('Property Details')
-        property_value = st.number_input('Property Value (£)', min_value=0.0, value=settings['property_value'], step=1000.0)
-        is_second_home = st.checkbox('Is this a second home?', value=settings['is_second_home'])
+        property_value = st.number_input('Property Value (£)', 
+            min_value=0.0, 
+            value=st.session_state.property_value, 
+            step=1000.0,
+            key='property_value'
+        )
+        is_second_home = st.checkbox('Is this a second home?', 
+            value=st.session_state.is_second_home,
+            key='is_second_home'
+        )
         
         st.subheader('Mortgage Details')
-        deposit_type = st.radio('Deposit Input Type', ['Percentage', 'Fixed Amount'], 
-                              index=0 if settings['deposit_type'] == 'Percentage' else 1)
+        deposit_type = st.radio('Deposit Input Type', 
+            ['Percentage', 'Fixed Amount'],
+            index=0 if st.session_state.deposit_type == 'Percentage' else 1,
+            key='deposit_type'
+        )
         
         if deposit_type == 'Percentage':
             deposit_percentage = st.number_input('Deposit Percentage (%)', 
                 min_value=5.0, max_value=100.0, 
-                value=float(settings['deposit_percentage']), 
+                value=float(st.session_state.deposit_percentage), 
                 step=0.1,
-                format="%.1f"
+                format="%.1f",
+                key='deposit_percentage'
             )
             deposit = property_value * (deposit_percentage / 100)
         else:
-            deposit = st.number_input('Deposit Amount (£)', min_value=0.0, value=settings['deposit_amount'], step=1000.0)
+            deposit = st.number_input('Deposit Amount (£)', 
+                min_value=0.0, 
+                value=st.session_state.deposit_amount, 
+                step=1000.0,
+                key='deposit_amount'
+            )
         
         loan_amount = property_value - deposit
         mortgage_rate = st.number_input('Mortgage Interest Rate (%)', 
             min_value=0.0, max_value=20.0, 
-            value=float(settings['mortgage_rate']), 
+            value=float(st.session_state.mortgage_rate), 
             step=0.1,
-            format="%.2f"
+            format="%.2f",
+            key='mortgage_rate'
         ) / 100
         loan_term = st.number_input('Loan Term (years)', 
             min_value=5, max_value=35, 
-            value=int(settings['loan_term']), 
-            step=1
+            value=int(st.session_state.loan_term), 
+            step=1,
+            key='loan_term'
         )
         
         st.subheader('Additional Costs')
-        conveyancing_fees = st.number_input('Conveyancing Fees (£)', min_value=0.0, value=settings['conveyancing_fees'], step=100.0)
+        conveyancing_fees = st.number_input('Conveyancing Fees (£)', 
+            min_value=0.0, 
+            value=st.session_state.conveyancing_fees, 
+            step=100.0,
+            key='conveyancing_fees'
+        )
         selling_agent_fees = st.number_input('Selling Agent Fees (%)', 
             min_value=0.0, max_value=10.0, 
-            value=float(settings['selling_agent_fees']), 
+            value=float(st.session_state.selling_agent_fees), 
             step=0.1,
-            format="%.2f"
+            format="%.2f",
+            key='selling_agent_fees'
         ) / 100
-        home_insurance = st.number_input('Annual Home Insurance (£)', min_value=0.0, value=settings['home_insurance'], step=10.0)
-        upfront_renovation = st.number_input('Upfront Renovation Cost (£)', min_value=0.0, value=settings['upfront_renovation'], step=100.0)
-        upfront_furniture = st.number_input('Upfront Furniture Cost (£)', min_value=0.0, value=settings['upfront_furniture'], step=100.0)
+        home_insurance = st.number_input('Annual Home Insurance (£)', 
+            min_value=0.0, 
+            value=st.session_state.home_insurance, 
+            step=10.0,
+            key='home_insurance'
+        )
+        upfront_renovation = st.number_input('Upfront Renovation Cost (£)', 
+            min_value=0.0, 
+            value=st.session_state.upfront_renovation, 
+            step=100.0,
+            key='upfront_renovation'
+        )
+        upfront_furniture = st.number_input('Upfront Furniture Cost (£)', 
+            min_value=0.0, 
+            value=st.session_state.upfront_furniture, 
+            step=100.0,
+            key='upfront_furniture'
+        )
         
         st.subheader('Market Conditions')
         home_appreciation = st.number_input('Annual Home Appreciation Rate (%)', 
             min_value=0.0, max_value=20.0, 
-            value=float(settings['home_appreciation']), 
+            value=float(st.session_state.home_appreciation), 
             step=0.1,
-            format="%.2f"
+            format="%.2f",
+            key='home_appreciation'
         ) / 100
         investment_return = st.number_input('Investment Return Rate (%)', 
             min_value=0.0, max_value=20.0, 
-            value=float(settings['investment_return']), 
+            value=float(st.session_state.investment_return), 
             step=0.1,
-            format="%.2f"
+            format="%.2f",
+            key='investment_return'
         ) / 100
         
         st.subheader('Rental Income')
-        include_rental = st.checkbox('Include Rental Income', value=settings['include_rental'])
+        include_rental = st.checkbox('Include Rental Income', 
+            value=st.session_state.include_rental,
+            key='include_rental'
+        )
         room_rent = None
         room_rent_increase = None
         months_rented = None
         if include_rental:
-            room_rent = st.number_input('Monthly Room Rent (£)', min_value=0.0, value=settings['room_rent'], step=10.0)
+            room_rent = st.number_input('Monthly Room Rent (£)', 
+                min_value=0.0, 
+                value=st.session_state.room_rent, 
+                step=10.0,
+                key='room_rent'
+            )
             room_rent_increase = st.number_input('Annual Room Rent Increase (%)', 
                 min_value=0.0, max_value=20.0, 
-                value=float(settings['room_rent_increase']), 
+                value=float(st.session_state.room_rent_increase), 
                 step=0.1,
-                format="%.2f"
+                format="%.2f",
+                key='room_rent_increase'
             ) / 100
             months_rented = st.number_input('Months Rented Per Year', 
                 min_value=1, max_value=12, 
-                value=int(settings['months_rented']), 
-                step=1
+                value=int(st.session_state.months_rented), 
+                step=1,
+                key='months_rented'
             )
         
         st.subheader('Rental Scenario')
-        monthly_rent = st.number_input('Monthly Rent Payment (£)', min_value=0.0, value=settings['monthly_rent'], step=10.0)
+        monthly_rent = st.number_input('Monthly Rent Payment (£)', 
+            min_value=0.0, 
+            value=st.session_state.monthly_rent, 
+            step=10.0,
+            key='monthly_rent'
+        )
         rent_increase = st.number_input('Annual Rent Increase (%)', 
             min_value=0.0, max_value=20.0, 
-            value=float(settings['rent_increase']), 
+            value=float(st.session_state.rent_increase), 
             step=0.1,
-            format="%.2f"
+            format="%.2f",
+            key='rent_increase'
         ) / 100
         
         st.subheader('Common Parameters')
-        utilities = st.number_input('Monthly Utilities (£)', min_value=0.0, value=settings['utilities'], step=10.0)
+        utilities = st.number_input('Monthly Utilities (£)', 
+            min_value=0.0, 
+            value=st.session_state.utilities, 
+            step=10.0,
+            key='utilities'
+        )
         sell_after = st.number_input('Sell After (years)', 
             min_value=1, max_value=50, 
-            value=int(settings['sell_after']), 
-            step=1
+            value=int(st.session_state.sell_after), 
+            step=1,
+            key='sell_after'
         )
         child_years = st.number_input('Years Your Child Will Live In Property', 
             min_value=1, max_value=10, 
-            value=int(settings['child_years']), 
-            step=1
+            value=int(st.session_state.child_years), 
+            step=1,
+            key='child_years'
         )
         
         # Add a reset button
         if st.button('Reset to Defaults'):
-            settings = DEFAULT_SETTINGS.copy()
-            save_settings(settings)
+            reset_to_defaults()
             st.experimental_rerun()
     
-    # Save current settings
-    current_settings = {
-        'property_value': property_value,
-        'is_second_home': is_second_home,
-        'deposit_type': deposit_type,
-        'deposit_percentage': deposit_percentage if deposit_type == 'Percentage' else settings['deposit_percentage'],
-        'deposit_amount': deposit if deposit_type == 'Fixed Amount' else settings['deposit_amount'],
-        'mortgage_rate': mortgage_rate * 100,  # Store as percentage
-        'loan_term': loan_term,
-        'conveyancing_fees': conveyancing_fees,
-        'selling_agent_fees': selling_agent_fees * 100,  # Store as percentage
-        'home_insurance': home_insurance,
-        'upfront_renovation': upfront_renovation,
-        'upfront_furniture': upfront_furniture,
-        'home_appreciation': home_appreciation * 100,  # Store as percentage
-        'investment_return': investment_return * 100,  # Store as percentage
-        'include_rental': include_rental,
-        'room_rent': room_rent if room_rent is not None else settings['room_rent'],
-        'room_rent_increase': room_rent_increase * 100 if room_rent_increase is not None else settings['room_rent_increase'],
-        'months_rented': months_rented if months_rented is not None else settings['months_rented'],
-        'monthly_rent': monthly_rent,
-        'rent_increase': rent_increase * 100,  # Store as percentage
-        'utilities': utilities,
-        'sell_after': sell_after,
-        'child_years': child_years
-    }
-    save_settings(current_settings)
-    
-    # Calculate stamp duty
-    stamp_duty = calculate_stamp_duty(property_value, is_second_home)
+    # Update URL whenever any value changes
+    update_url_from_session()
     
     # Create scenario objects
     buy = BuyScenario(
@@ -516,7 +563,7 @@ def main():
         deposit=deposit,
         conveyancing_fees=conveyancing_fees,
         property_value=property_value,
-        stamp_duty=stamp_duty,
+        stamp_duty=calculate_stamp_duty(property_value, is_second_home),
         selling_agent_fees_percent=selling_agent_fees,
         home_appreciation_rate=home_appreciation,
         investment_return_rate=investment_return,
@@ -564,7 +611,7 @@ def main():
     with col1:
         st.write('Buy Scenario Initial Costs')
         st.write(f'• Deposit: £{deposit:,.2f}')
-        st.write(f'• Stamp Duty: £{stamp_duty:,.2f}')
+        st.write(f'• Stamp Duty: £{calculate_stamp_duty(property_value, is_second_home):,.2f}')
         st.write(f'• Conveyancing Fees: £{conveyancing_fees:,.2f}')
         st.write(f'• Upfront Renovation: £{upfront_renovation:,.2f}')
         st.write(f'• Upfront Furniture: £{upfront_furniture:,.2f}')
