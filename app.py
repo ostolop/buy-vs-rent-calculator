@@ -310,7 +310,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
 
 def generate_recommendation(results, buy: BuyScenario, rent: RentScenario, common: CommonParams) -> str:
     final_buy_position = results['buy_bank_balance'][-1] + (results['property_value'][-1] - results['mortgage_balance'][-1])
-    final_rent_position = results['rent_bank_balance'][-1]
+    final_rent_position = results['rent_bank_balance'][-1]  # This already includes investment returns
     npv_difference = results['buy_npv'] - results['rent_npv']
     
     recommendation = []
@@ -332,6 +332,12 @@ def generate_recommendation(results, buy: BuyScenario, rent: RentScenario, commo
     # Property appreciation
     total_appreciation = results['property_value'][-1] - buy.property_value
     recommendation.append(f"\nProperty appreciation: The property value is expected to increase by £{total_appreciation:,.2f} over {common.sell_after_years} years at {buy.home_appreciation_rate*100:.1f}% annual appreciation.")
+    
+    # Investment returns analysis
+    initial_deposit = buy.deposit
+    final_investment = results['rent_bank_balance'][-1]
+    total_investment_returns = final_investment - initial_deposit
+    recommendation.append(f"\nInvestment returns: The deposit of £{initial_deposit:,.2f} would generate £{total_investment_returns:,.2f} in investment returns at {buy.investment_return_rate*100:.1f}% annual return.")
     
     # Rental income analysis
     if buy.room_rent is not None:
@@ -724,6 +730,7 @@ def main():
         rent_cashflow_df = pd.DataFrame([{
             'Year': d['year'],
             'Total Cash Flow': d['cash_flow'],
+            'Investment Returns': d.get('investment_returns', 0),
             'Rent Paid': d.get('rent_paid', 0),
             'Utilities': d.get('utilities', 0)
         } for d in results['rent_yearly_details']])
@@ -731,6 +738,7 @@ def main():
         # Format all columns except 'Year' with currency
         rent_cashflow_styled = rent_cashflow_df.style.format({
             'Total Cash Flow': '£{:,.2f}',
+            'Investment Returns': '£{:,.2f}',
             'Rent Paid': '£{:,.2f}',
             'Utilities': '£{:,.2f}',
             'Year': '{:.0f}'  # Format Year as integer
