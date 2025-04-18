@@ -7,6 +7,51 @@ from dataclasses import dataclass
 from typing import Optional
 import json
 from urllib.parse import quote, unquote
+import datetime
+import os
+
+# Report management functions
+def save_report(settings, results, recommendation, comment):
+    """Save a report to the session state"""
+    if 'reports' not in st.session_state:
+        st.session_state.reports = []
+    
+    report = {
+        'id': len(st.session_state.reports),
+        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'settings': settings,
+        'results': results,
+        'recommendation': recommendation,
+        'comment': comment,
+        'npv': {
+            'buy': results['buy_npv'],
+            'rent': results['rent_npv']
+        },
+        'final_balance': {
+            'buy': results['buy_bank_balance'][-1],
+            'rent': results['rent_bank_balance'][-1]
+        }
+    }
+    
+    st.session_state.reports.append(report)
+    return report['id']
+
+def load_report(report_id):
+    """Load a report from the session state"""
+    if 'reports' not in st.session_state:
+        return None
+    
+    for report in st.session_state.reports:
+        if report['id'] == report_id:
+            return report
+    return None
+
+def delete_report(report_id):
+    """Delete a report from the session state"""
+    if 'reports' not in st.session_state:
+        return
+    
+    st.session_state.reports = [r for r in st.session_state.reports if r['id'] != report_id]
 
 # Default settings
 DEFAULT_SETTINGS = {
@@ -864,6 +909,59 @@ def main():
         st.write(f'• Net Cash Flow: £{rent_inflows + rent_outflows:,.2f}')
     
     st.write(f'Difference: £{abs(results["buy_bank_balance"][-1] - results["rent_bank_balance"][-1]):,.2f} in favor of {"buying" if results["buy_bank_balance"][-1] > results["rent_bank_balance"][-1] else "renting"}')
+
+    # Report Management
+    st.subheader('Report Management')
+    
+    # Save current report
+    report_comment = st.text_input('Add a comment to your report (optional)')
+    if st.button('Save Current Report'):
+        current_settings = {key: st.session_state[key] for key in DEFAULT_SETTINGS.keys()}
+        report_id = save_report(current_settings, results, recommendation, report_comment)
+        st.success(f'Report saved successfully! (ID: {report_id})')
+    
+    # View saved reports
+    if 'reports' in st.session_state and st.session_state.reports:
+        st.write('### Saved Reports')
+        
+        # Create a DataFrame of reports
+        reports_df = pd.DataFrame([{
+            'ID': report['id'],
+            'Timestamp': report['timestamp'],
+            'Property Value': f'£{report["settings"]["property_value"]:,.2f}',
+            'Buy NPV': f'£{report["npv"]["buy"]:,.2f}',
+            'Rent NPV': f'£{report["npv"]["rent"]:,.2f}',
+            'Final Buy Balance': f'£{report["final_balance"]["buy"]:,.2f}',
+            'Final Rent Balance': f'£{report["final_balance"]["rent"]:,.2f}',
+            'Comment': report['comment']
+        } for report in st.session_state.reports])
+        
+        # Display reports table
+        st.dataframe(reports_df, hide_index=True)
+        
+        # Load report
+        selected_report_id = st.selectbox(
+            'Select a report to load',
+            options=[report['id'] for report in st.session_state.reports],
+            format_func=lambda x: f"Report {x} - {next(r['timestamp'] for r in st.session_state.reports if r['id'] == x)}"
+        )
+        
+        if selected_report_id is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button('Load Selected Report'):
+                    report = load_report(selected_report_id)
+                    if report:
+                        # Update session state with report settings
+                        for key, value in report['settings'].items():
+                            st.session_state[key] = value
+                        st.experimental_rerun()
+            with col2:
+                if st.button('Delete Selected Report'):
+                    delete_report(selected_report_id)
+                    st.experimental_rerun()
+    else:
+        st.info('No saved reports yet. Run an analysis and click "Save Current Report" to save one.')
 
 if __name__ == '__main__':
     main() 
