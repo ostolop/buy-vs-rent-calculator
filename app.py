@@ -204,7 +204,7 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     }
     
     buy_cash_flow[0] = sum(initial_costs.values())
-    buy_bank_balance[0] = 0  # Start at 0 after paying all initial costs
+    buy_bank_balance[0] = buy_cash_flow[0]  # Start with negative balance reflecting all initial costs
     property_value[0] = buy.property_value
     mortgage_balance[0] = buy.loan_amount
     accumulated_equity[0] = buy.deposit
@@ -675,7 +675,7 @@ def main():
         # Add a reset button
         if st.button('Reset to Defaults'):
             reset_to_defaults()
-            st.experimental_rerun()
+            st.rerun()
     
     # Update URL whenever any value changes
     update_url_from_session()
@@ -955,11 +955,11 @@ def main():
                         # Update session state with report settings
                         for key, value in report['settings'].items():
                             st.session_state[key] = value
-                        st.experimental_rerun()
+                        st.rerun()
             with col2:
                 if st.button('Delete Selected Report'):
                     delete_report(selected_report_id)
-                    st.experimental_rerun()
+                    st.rerun()
     else:
         st.info('No saved reports yet. Run an analysis and click "Save Current Report" to save one.')
 
