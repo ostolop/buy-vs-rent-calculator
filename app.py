@@ -683,6 +683,53 @@ def main():
     else:
         st.success(f'Renting appears to be more financially advantageous by £{(final_rent_position - final_buy_position):,.2f}')
     
+    # Input Parameters Table
+    st.subheader('Input Parameters')
+    input_params = {
+        'Property Details': {
+            'Property Value': f'£{property_value:,.2f}',
+            'Is Second Home': 'Yes' if is_second_home else 'No',
+            'Deposit Type': deposit_type,
+            'Deposit Amount': f'£{deposit:,.2f}',
+            'Deposit Percentage': f'{deposit_percentage if deposit_type == "Percentage" else (deposit/property_value*100):.1f}%'
+        },
+        'Mortgage Details': {
+            'Mortgage Rate': f'{mortgage_rate*100:.2f}%',
+            'Loan Term': f'{loan_term} years',
+            'Loan Amount': f'£{loan_amount:,.2f}'
+        },
+        'Additional Costs': {
+            'Conveyancing Fees': f'£{conveyancing_fees:,.2f}',
+            'Selling Agent Fees': f'{selling_agent_fees*100:.1f}%',
+            'Home Insurance': f'£{home_insurance:,.2f}',
+            'Upfront Renovation': f'£{upfront_renovation:,.2f}',
+            'Upfront Furniture': f'£{upfront_furniture:,.2f}'
+        },
+        'Market Conditions': {
+            'Home Appreciation Rate': f'{home_appreciation*100:.1f}%',
+            'Investment Return Rate': f'{investment_return*100:.1f}%'
+        },
+        'Rental Details': {
+            'Include Rental Income': 'Yes' if include_rental else 'No',
+            'Monthly Room Rent': f'£{room_rent:,.2f}' if room_rent else 'N/A',
+            'Room Rent Increase': f'{room_rent_increase*100:.1f}%' if room_rent_increase else 'N/A',
+            'Months Rented Per Year': f'{months_rented}' if months_rented else 'N/A',
+            'Monthly Rent Payment': f'£{monthly_rent:,.2f}',
+            'Annual Rent Increase': f'{rent_increase*100:.1f}%'
+        },
+        'Common Parameters': {
+            'Monthly Utilities': f'£{utilities:,.2f}',
+            'Sell After Years': f'{sell_after} years',
+            'Child Living Years': f'{child_years} years'
+        }
+    }
+    
+    # Create a DataFrame for each category and display them
+    for category, params in input_params.items():
+        st.write(f'**{category}**')
+        df = pd.DataFrame(list(params.items()), columns=['Parameter', 'Value'])
+        st.dataframe(df, hide_index=True)
+    
     # Cost Breakdown
     st.subheader('Cost Breakdown')
     col1, col2 = st.columns(2)
