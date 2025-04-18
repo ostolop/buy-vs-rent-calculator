@@ -248,7 +248,9 @@ def calculate_cash_flows(buy: BuyScenario, rent: RentScenario, common: CommonPar
     # Calculate taxable gain after mortgage interest deduction
     capital_gain = selling_price - original_cost
     taxable_gain = max(0, capital_gain - mortgage_interest_deduction)
-    cgt = taxable_gain * buy.cgt_rate if taxable_gain > 0 else 0
+    
+    # Only apply CGT if it's a second home
+    cgt = taxable_gain * buy.cgt_rate if (taxable_gain > 0 and buy.is_second_home) else 0
     
     # Calculate sale proceeds (this is what you actually get in your bank account)
     sale_proceeds = selling_price - agent_fees - remaining_mortgage - cgt
@@ -793,11 +795,27 @@ def main():
     
     # Final Position
     st.subheader('Final Position')
+    
+    # Calculate total cash inflows and outflows for both scenarios
+    buy_inflows = sum(max(0, flow) for flow in results['buy_cash_flow'])
+    buy_outflows = sum(min(0, flow) for flow in results['buy_cash_flow'])
+    rent_inflows = sum(max(0, flow) for flow in results['rent_cash_flow'])
+    rent_outflows = sum(min(0, flow) for flow in results['rent_cash_flow'])
+    
     final_col1, final_col2 = st.columns(2)
     with final_col1:
         st.metric('Buy Scenario Net Worth', f'£{results["buy_bank_balance"][-1]:,.2f}')
+        st.write('Cash Flow Summary:')
+        st.write(f'• Total Inflows: £{buy_inflows:,.2f}')
+        st.write(f'• Total Outflows: £{abs(buy_outflows):,.2f}')
+        st.write(f'• Net Cash Flow: £{buy_inflows + buy_outflows:,.2f}')
     with final_col2:
         st.metric('Rent Scenario Net Worth', f'£{results["rent_bank_balance"][-1]:,.2f}')
+        st.write('Cash Flow Summary:')
+        st.write(f'• Total Inflows: £{rent_inflows:,.2f}')
+        st.write(f'• Total Outflows: £{abs(rent_outflows):,.2f}')
+        st.write(f'• Net Cash Flow: £{rent_inflows + rent_outflows:,.2f}')
+    
     st.write(f'Difference: £{abs(results["buy_bank_balance"][-1] - results["rent_bank_balance"][-1]):,.2f} in favor of {"buying" if results["buy_bank_balance"][-1] > results["rent_bank_balance"][-1] else "renting"}')
 
 if __name__ == '__main__':
